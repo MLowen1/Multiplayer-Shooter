@@ -1,7 +1,11 @@
 using System;
+using System.Collections.Generic;
+using System.Runtime.CompilerServices;
+using NUnit.Framework;
 using PurrNet;
 using Unity.Cinemachine;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 [RequireComponent(typeof(CharacterController))]
 
@@ -21,6 +25,8 @@ public class PlayerController : NetworkBehaviour
 
     [Header("References")]
     [SerializeField] private CinemachineCamera playerCamera;
+    [SerializeField] private NetworkAnimator animator;
+    [SerializeField] private List<Renderer> renderers = new();
 
     private CharacterController characterController;
     private Vector3 velocity;
@@ -34,6 +40,14 @@ public class PlayerController : NetworkBehaviour
         enabled = isOwner;
 
         playerCamera.gameObject.SetActive(isOwner);
+
+        if (isOwner)
+        {
+            foreach (var renderer in renderers)
+            {
+                renderer.shadowCastingMode = ShadowCastingMode.ShadowsOnly;
+            }
+        }
     }
 
     private void OnDisable()
@@ -85,6 +99,11 @@ public class PlayerController : NetworkBehaviour
 
         velocity.y += gravity * Time.deltaTime;
         characterController.Move(velocity * Time.deltaTime);
+
+        //Handle animations
+
+        animator.SetFloat("Forward", vertical);
+        animator.SetFloat("Sideways", horizontal);
     }
 
     private void HandleRotation()
