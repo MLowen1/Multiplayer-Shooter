@@ -430,6 +430,7 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 183
   range: 20
+  damage: 10
 --- !u!4 &168949486973549346 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 4764624344734074, guid: c6865c562fd3f2841a92dc0cbbd6b4b4, type: 3}
