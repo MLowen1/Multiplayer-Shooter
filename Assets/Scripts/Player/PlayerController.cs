@@ -32,38 +32,57 @@ public class PlayerController : NetworkBehaviour
     private Vector3 velocity;
     private float verticalRotation = 0f;
 
-    // If the player is the owner of this object, enable the controlle, other wise the player will not be able to control the object.
+    // If the player is the owner of this object, enable the controller, otherwise the player will not be able to control the object.
     protected override void OnSpawned()
     {
         base.OnSpawned();
 
-        enabled = isOwner;
+        // Get CharacterController reference
+        characterController = GetComponent<CharacterController>();
 
+        // Only enable this script and CharacterController for the owner
+        enabled = isOwner;
+        characterController.enabled = isOwner;
+
+        // Only enable camera for owner
         playerCamera.gameObject.SetActive(isOwner);
 
         if (isOwner)
         {
+            // Hide own model (only show shadows)
             foreach (var renderer in renderers)
             {
                 renderer.shadowCastingMode = ShadowCastingMode.ShadowsOnly;
             }
+
+            // Lock cursor for owner
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
         }
     }
 
     private void OnDisable()
     {
-        Cursor.lockState = CursorLockMode.None;
-        Cursor.visible = true;
+        if (isOwner)
+        {
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+        }
     }
 
     private void Start()
     {
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
-        characterController = GetComponent<CharacterController>();
+        // Early exit for non-owners
+        if (!isOwner) return;
+
+        if (characterController == null)
+        {
+            characterController = GetComponent<CharacterController>();
+        }
 
         if (playerCamera == null)
         {
+            Debug.LogError("PlayerController: No camera assigned!");
             enabled = false;
             return;
         }
@@ -71,6 +90,9 @@ public class PlayerController : NetworkBehaviour
 
     private void Update()
     {
+        // Safety check - should never run for non-owners but just in case
+        if (!isOwner) return;
+
         HandleMovement();
         HandleRotation();
     }
@@ -100,8 +122,7 @@ public class PlayerController : NetworkBehaviour
         velocity.y += gravity * Time.deltaTime;
         characterController.Move(velocity * Time.deltaTime);
 
-        //Handle animations
-
+        // Handle animations
         animator.SetFloat("Forward", vertical);
         animator.SetFloat("Sideways", horizontal);
     }

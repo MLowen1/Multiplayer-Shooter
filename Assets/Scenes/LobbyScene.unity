@@ -360,7 +360,7 @@ GameObject:
   - component: {fileID: 280585736}
   - component: {fileID: 280585737}
   m_Layer: 5
-  m_Name: Room Code Text
+  m_Name: Connection Info Text
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -383,7 +383,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 200}
-  m_SizeDelta: {x: 500, y: 80}
+  m_SizeDelta: {x: 500, y: 100}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &280585736
 CanvasRenderer:
@@ -748,7 +748,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 11ed72de1a38c294eb966f2820903e5b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LobbySceneUI
-  roomCodeText: {fileID: 280585737}
+  connectionInfoText: {fileID: 280585737}
   playerCountText: {fileID: 254808662}
   statusText: {fileID: 1521974562}
   startGameButton: {fileID: 1587173721}

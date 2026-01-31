@@ -8,7 +8,7 @@ using UnityEngine.SceneManagement;
 public class LobbySceneUI : MonoBehaviour
 {
     [Header("UI References")]
-    [SerializeField] private TextMeshProUGUI roomCodeText;
+    [SerializeField] private TextMeshProUGUI connectionInfoText;
     [SerializeField] private TextMeshProUGUI playerCountText;
     [SerializeField] private TextMeshProUGUI statusText;
     [SerializeField] private Button startGameButton;
@@ -19,15 +19,26 @@ public class LobbySceneUI : MonoBehaviour
     [SerializeField] private string mainMenuSceneName = "MainMenu";
 
     private bool _isHost;
-    private int _lastPlayerCount;
+    private string _connectionMode;
 
     private void Start()
     {
         _isHost = PlayerPrefs.GetString("IsHost", "0").Equals("1");
         string roomCode = PlayerPrefs.GetString("RoomCode", "?????");
+        _connectionMode = PlayerPrefs.GetString("ConnectionMode", "Online");
 
-        if (roomCodeText != null)
-            roomCodeText.text = "Room Code: " + roomCode;
+        // Display connection info based on mode
+        if (connectionInfoText != null)
+        {
+            if (_connectionMode == "LAN")
+            {
+                connectionInfoText.text = "LAN Mode\nHost IP: " + roomCode;
+            }
+            else
+            {
+                connectionInfoText.text = "Online Mode\nRoom Code: " + roomCode;
+            }
+        }
 
         if (startGameButton != null)
             startGameButton.gameObject.SetActive(_isHost);
@@ -57,7 +68,7 @@ public class LobbySceneUI : MonoBehaviour
         {
             SetStatus("Disconnected!");
             Invoke(nameof(ReturnToMainMenu), 1f);
-            enabled = false; // Stop polling
+            enabled = false;
         }
     }
 
@@ -70,14 +81,12 @@ public class LobbySceneUI : MonoBehaviour
         }
     }
 
-    // Correct signature: (PlayerID player, bool isReconnect, bool asServer)
     private void OnPlayerJoined(PlayerID player, bool isReconnect, bool asServer)
     {
         UpdatePlayerCount();
         Debug.Log("Player joined: " + player.ToString());
     }
 
-    // Correct signature: (PlayerID player, bool asServer)
     private void OnPlayerLeft(PlayerID player, bool asServer)
     {
         UpdatePlayerCount();
@@ -86,13 +95,11 @@ public class LobbySceneUI : MonoBehaviour
 
     private void UpdatePlayerCount()
     {
-        int count = 1; // Default to at least 1 (us)
+        int count = 1;
 
-        // Try to get player count from PlayersManager
         var playerModule = NetworkManager.main?.playerModule;
         if (playerModule != null)
         {
-            // Try different property names for player count
             var type = playerModule.GetType();
             var countProp = type.GetProperty("count") ?? type.GetProperty("Count") ?? type.GetProperty("playerCount");
             if (countProp != null)
@@ -101,7 +108,6 @@ public class LobbySceneUI : MonoBehaviour
             }
             else
             {
-                // Try to get players collection and count it
                 var playersProp = type.GetProperty("players") ?? type.GetProperty("Players");
                 if (playersProp != null)
                 {
@@ -116,8 +122,6 @@ public class LobbySceneUI : MonoBehaviour
 
         if (playerCountText != null)
             playerCountText.text = "Players: " + count;
-
-        _lastPlayerCount = count;
     }
 
     private void OnStartGameClicked()
@@ -126,7 +130,6 @@ public class LobbySceneUI : MonoBehaviour
 
         SetStatus("Starting game...");
 
-        // Use PurrNet's scene module to load game scene for all clients
         var sceneModule = NetworkManager.main?.sceneModule;
         if (sceneModule != null)
         {
@@ -164,13 +167,13 @@ public class LobbySceneUI : MonoBehaviour
         Debug.Log("[Lobby] " + message);
     }
 
-    public void CopyRoomCode()
+    public void CopyConnectionInfo()
     {
-        string code = PlayerPrefs.GetString("RoomCode", "");
-        if (!string.IsNullOrEmpty(code))
+        string info = PlayerPrefs.GetString("RoomCode", "");
+        if (!string.IsNullOrEmpty(info))
         {
-            GUIUtility.systemCopyBuffer = code;
-            SetStatus("Code copied!");
+            GUIUtility.systemCopyBuffer = info;
+            SetStatus("Copied to clipboard!");
         }
     }
 }
