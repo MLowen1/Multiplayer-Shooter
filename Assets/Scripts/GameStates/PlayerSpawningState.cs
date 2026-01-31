@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using PurrNet;
+using PurrNet.Modules;
 using PurrNet.StateMachine;
 using UnityEngine;
 
@@ -7,32 +9,64 @@ public class PlayerSpawningState : StateNode
     [SerializeField] private PlayerHealth playerPrefab;
     [SerializeField] private List<Transform> spawnPoints = new();
 
-    // When we enter this state we want to go through all of the players in the game and we want to spawn a player prefab for each of them. 
     public override void Enter(bool asServer)
     {
         base.Enter(asServer);
 
-        // If we are not running as a server then return.
+        // Only server spawns players
         if (!asServer)
             return;
 
-        var spawnedPlayers = new List<PlayerHealth>();
+        // Get scene modules
+        if (!networkManager.TryGetModule(out ScenesModule scenesModule, true))
+        {
+            Debug.LogError("ScenesModule not found!");
+            return;
+        }
 
+        if (!networkManager.TryGetModule(out ScenePlayersModule scenePlayersModule, true))
+        {
+            Debug.LogError("ScenePlayersModule not found!");
+            return;
+        }
+
+        // Get current scene ID
+        if (!scenesModule.TryGetSceneID(gameObject.scene, out var sceneID))
+        {
+            Debug.LogError("Could not get SceneID for current scene!");
+            return;
+        }
+
+        // Get players in THIS scene
+        if (!scenePlayersModule.TryGetPlayersInScene(sceneID, out var playersInScene))
+        {
+            Debug.LogError("Could not get players in scene!");
+            return;
+        }
+
+        Debug.Log($"[PlayerSpawning] Spawning {playersInScene.Count} players...");
+
+        var spawnedPlayers = new List<PlayerHealth>();
         int currentSpawnIndex = 0;
 
-        foreach (var player in networkManager.players)
+        foreach (var player in playersInScene)
         {
             var spawnPoint = spawnPoints[currentSpawnIndex];
             var newPlayer = Instantiate(playerPrefab, spawnPoint.position, spawnPoint.rotation);
             newPlayer.GiveOwnership(player);
             spawnedPlayers.Add(newPlayer);
-            currentSpawnIndex++;
 
+            Debug.Log($"[PlayerSpawning] Spawned player for {player}");
+
+            currentSpawnIndex++;
             if (currentSpawnIndex >= spawnPoints.Count)
                 currentSpawnIndex = 0;
         }
 
-       //machine.Next(spawnedPlayers);
+        Debug.Log($"[PlayerSpawning] All {spawnedPlayers.Count} players spawned!");
+
+        // Move to next state with the spawned players
+        machine.Next(spawnedPlayers);
     }
 
     public override void Exit(bool asServer)
