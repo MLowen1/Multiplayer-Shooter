@@ -6900,6 +6900,7 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
   m_SourcePrefab: {fileID: 100100000, guid: 5171d5eb12e0f184a8761aa4157f7d00, type: 3}
 --- !u!4 &606239613 stripped
 Transform:
@@ -6969,6 +6970,10 @@ Transform:
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &658622115
+=======
+  m_SourcePrefab: {fileID: 100100000, guid: 7d1e5b8ce3cce8448811fa721df10782, type: 3}
+--- !u!1001 &600477933
+>>>>>>> Stashed changes
 =======
   m_SourcePrefab: {fileID: 100100000, guid: 7d1e5b8ce3cce8448811fa721df10782, type: 3}
 --- !u!1001 &600477933
@@ -7930,6 +7935,14 @@ PrefabInstance:
 Transform:
   m_CorrespondingSourceObject: {fileID: 4067817494309336, guid: 7d1e5b8ce3cce8448811fa721df10782, type: 3}
   m_PrefabInstance: {fileID: 1372970538}
+<<<<<<< Updated upstream
+=======
+  m_PrefabAsset: {fileID: 0}
+--- !u!4 &803486058 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 4067817494309336, guid: 7d1e5b8ce3cce8448811fa721df10782, type: 3}
+  m_PrefabInstance: {fileID: 228327337}
+>>>>>>> Stashed changes
   m_PrefabAsset: {fileID: 0}
 --- !u!4 &803486058 stripped
 Transform:
@@ -13039,6 +13052,7 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
   m_SourcePrefab: {fileID: 100100000, guid: 5171d5eb12e0f184a8761aa4157f7d00, type: 3}
 --- !u!4 &1096526852 stripped
 Transform:
@@ -13124,6 +13138,9 @@ Transform:
   m_Children: []
   m_Father: {fileID: 402534654}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+=======
+  m_SourcePrefab: {fileID: 100100000, guid: 94469aeaca2d49442af381840b70bb6c, type: 3}
+>>>>>>> Stashed changes
 =======
   m_SourcePrefab: {fileID: 100100000, guid: 94469aeaca2d49442af381840b70bb6c, type: 3}
 >>>>>>> Stashed changes
@@ -25337,9 +25354,12 @@ SceneRoots:
   - {fileID: 816131523}
   - {fileID: 47986195}
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
   - {fileID: 924992228}
   - {fileID: 652294719}
 =======
+=======
+>>>>>>> Stashed changes
   - {fileID: 394272364}
   - {fileID: 1553576976}
   - {fileID: 295625633}
@@ -25437,4 +25457,7 @@ SceneRoots:
   - {fileID: 1714160541}
   - {fileID: 1089422090}
   - {fileID: 1343337349}
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
