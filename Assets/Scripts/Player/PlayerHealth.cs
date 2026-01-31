@@ -7,9 +7,12 @@ public class PlayerHealth : NetworkBehaviour
     [SerializeField] private SyncVar<int> health = new(100);
     [SerializeField] private int selfLayer, otherLayer;
 
+    [Header("Debug")]
+    [SerializeField] private bool showDebug = true;
+
     public Action<PlayerHealth> OnDeath_Server;
 
-    public int Health => health;
+    public int Health => health.value;
 
     protected override void OnSpawned()
     {
@@ -18,7 +21,10 @@ public class PlayerHealth : NetworkBehaviour
         var actualLayer = isOwner ? selfLayer : otherLayer;
         SetLayerRecursive(gameObject, actualLayer);
 
-        if(isOwner)
+        if (showDebug)
+            Debug.Log($"[PlayerHealth] Spawned. IsOwner: {isOwner}, Layer set to: {actualLayer}, Health: {health.value}");
+
+        if (isOwner)
             health.onChanged += OnHealthChanged;
     }
 
@@ -26,12 +32,16 @@ public class PlayerHealth : NetworkBehaviour
     {
         base.OnDestroy();
 
-        health.onChanged -= OnHealthChanged;
+        if (isOwner)
+            health.onChanged -= OnHealthChanged;
     }
 
     private void OnHealthChanged(int newHealth)
     {
-        InstanceHandler.GetInstance<MainGameView>().UpdateHealth(newHealth);
+        if (showDebug)
+            Debug.Log($"[PlayerHealth] Health changed to: {newHealth}");
+
+        InstanceHandler.GetInstance<MainGameView>()?.UpdateHealth(newHealth);
     }
 
     private void SetLayerRecursive(GameObject obj, int layer)
@@ -44,15 +54,25 @@ public class PlayerHealth : NetworkBehaviour
         }
     }
 
-    [ServerRpc(requireOwnership:false)]
-
+    [ServerRpc(requireOwnership: false)]
     public void ChangeHealth(int amount)
     {
+        if (showDebug)
+            Debug.Log($"[PlayerHealth] ChangeHealth called on server. Amount: {amount}, Current health: {health.value}");
+
         health.value += amount;
-        
-        if(health <= 0)
+
+        if (showDebug)
+            Debug.Log($"[PlayerHealth] New health: {health.value}");
+
+        if (health.value <= 0)
         {
+            if (showDebug)
+                Debug.Log($"[PlayerHealth] Player died! Invoking OnDeath_Server and destroying...");
+
             OnDeath_Server?.Invoke(this);
+
+            // Destroy the networked object - server will propagate to clients
             Destroy(gameObject);
         }
     }
