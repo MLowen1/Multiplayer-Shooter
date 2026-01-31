@@ -59,8 +59,8 @@ public class PlayerSpawningState : StateNode
     private List<PlayerHealth> SpawnPlayers()
     {
         var spawnedPlayers = new List<PlayerHealth>();
-        int currentSpawnIndex = 0;
 
+        int currentSpawnIndex = 0;
         foreach (var player in networkManager.players)
         {
             var spawnPoint = spawnPoints[currentSpawnIndex];

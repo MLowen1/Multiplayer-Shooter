@@ -1,6 +1,7 @@
 using UnityEngine;
 using PurrNet;
 using System;
+using UnityEngine.SocialPlatforms.Impl;
 
 public class PlayerHealth : NetworkBehaviour
 {
@@ -58,7 +59,7 @@ public class PlayerHealth : NetworkBehaviour
     }
 
     [ServerRpc(requireOwnership: false)]
-    public void ChangeHealth(int amount)
+    public void ChangeHealth(int amount, RPCInfo info = default)
     {
         if (showDebug)
             Debug.Log($"[PlayerHealth] ChangeHealth called on server. Amount: {amount}, Current health: {health.value}");
@@ -73,6 +74,12 @@ public class PlayerHealth : NetworkBehaviour
             if (showDebug)
                 Debug.Log($"[PlayerHealth] Player died! Invoking OnDeath_Server and destroying...");
 
+            if(InstanceHandler.TryGetInstance(out ScoreManager scoreManager))
+            {
+                scoreManager.AddKill(info.sender);
+                if(owner.HasValue)
+                    scoreManager.AddDeath(owner.Value);
+            }
             OnDeath_Server?.Invoke(owner.Value);
 
             // Destroy the networked object - server will propagate to clients
