@@ -46,10 +46,22 @@ public class PlayerSpawningState : StateNode
 
         Debug.Log($"[PlayerSpawning] Spawning {playersInScene.Count} players...");
 
+        DespawnPlayers();
+
+        var spawnedPlayers = SpawnPlayers();
+
+        Debug.Log($"[PlayerSpawning] All {spawnedPlayers.Count} players spawned!");
+
+        // Move to next state with the spawned players
+        machine.Next(spawnedPlayers);
+    }
+
+    private List<PlayerHealth> SpawnPlayers()
+    {
         var spawnedPlayers = new List<PlayerHealth>();
         int currentSpawnIndex = 0;
 
-        foreach (var player in playersInScene)
+        foreach (var player in networkManager.players)
         {
             var spawnPoint = spawnPoints[currentSpawnIndex];
             var newPlayer = Instantiate(playerPrefab, spawnPoint.position, spawnPoint.rotation);
@@ -63,10 +75,16 @@ public class PlayerSpawningState : StateNode
                 currentSpawnIndex = 0;
         }
 
-        Debug.Log($"[PlayerSpawning] All {spawnedPlayers.Count} players spawned!");
+        return spawnedPlayers;
+    }
 
-        // Move to next state with the spawned players
-        machine.Next(spawnedPlayers);
+    private void DespawnPlayers()
+    {
+        var allPlayers = FindObjectsByType<PlayerHealth>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+        foreach (var player in allPlayers)
+        {
+            Destroy(player.gameObject);
+        }
     }
 
     public override void Exit(bool asServer)

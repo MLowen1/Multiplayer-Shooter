@@ -10,7 +10,7 @@ public class PlayerHealth : NetworkBehaviour
     [Header("Debug")]
     [SerializeField] private bool showDebug = true;
 
-    public Action<PlayerHealth> OnDeath_Server;
+    public Action<PlayerID> OnDeath_Server;
 
     public int Health => health.value;
 
@@ -25,7 +25,10 @@ public class PlayerHealth : NetworkBehaviour
             Debug.Log($"[PlayerHealth] Spawned. IsOwner: {isOwner}, Layer set to: {actualLayer}, Health: {health.value}");
 
         if (isOwner)
+        {
+            InstanceHandler.GetInstance<MainGameView>()?.UpdateHealth(health.value);
             health.onChanged += OnHealthChanged;
+        }
     }
 
     protected override void OnDestroy()
@@ -70,7 +73,7 @@ public class PlayerHealth : NetworkBehaviour
             if (showDebug)
                 Debug.Log($"[PlayerHealth] Player died! Invoking OnDeath_Server and destroying...");
 
-            OnDeath_Server?.Invoke(this);
+            OnDeath_Server?.Invoke(owner.Value);
 
             // Destroy the networked object - server will propagate to clients
             Destroy(gameObject);
