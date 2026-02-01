@@ -14,18 +14,47 @@ public class LobbySceneUI : MonoBehaviour
     [SerializeField] private Button startGameButton;
     [SerializeField] private Button leaveButton;
 
+    [Header("Round Settings (Host Only)")]
+    [SerializeField] private GameObject roundSettingsPanel;
+    [SerializeField] private TextMeshProUGUI roundCountText;
+    [SerializeField] private Button decreaseRoundsButton;
+    [SerializeField] private Button increaseRoundsButton;
+    [SerializeField] private int minRounds = 1;
+    [SerializeField] private int maxRounds = 10;
+    [SerializeField] private int defaultRounds = 3;
+
     [Header("Settings")]
     [SerializeField] private string gameSceneName = "GameScene";
     [SerializeField] private string mainMenuSceneName = "MainMenu";
 
     private bool _isHost;
     private string _connectionMode;
+    private int _currentRounds;
 
     private void Start()
     {
-        _isHost = PlayerPrefs.GetString("IsHost", "0").Equals("1");
+        // IMPORTANT: Unlock and show cursor when entering lobby
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+
+        // Detect host status - check NetworkManager first (for returning from game), 
+        // then fall back to PlayerPrefs (for first time entering lobby)
+        if (NetworkManager.main != null && NetworkManager.main.isServer)
+        {
+            _isHost = true;
+            // Update PlayerPrefs to keep it in sync
+            PlayerPrefs.SetString("IsHost", "1");
+        }
+        else
+        {
+            _isHost = PlayerPrefs.GetString("IsHost", "0").Equals("1");
+        }
+
         string roomCode = PlayerPrefs.GetString("RoomCode", "?????");
         _connectionMode = PlayerPrefs.GetString("ConnectionMode", "Online");
+
+        // Initialize round count (load previous setting if available)
+        _currentRounds = PlayerPrefs.GetInt("TotalRounds", defaultRounds);
 
         // Display connection info based on mode
         if (connectionInfoText != null)
@@ -40,11 +69,18 @@ public class LobbySceneUI : MonoBehaviour
             }
         }
 
+        // Host-only UI
         if (startGameButton != null)
             startGameButton.gameObject.SetActive(_isHost);
 
+        if (roundSettingsPanel != null)
+            roundSettingsPanel.SetActive(_isHost);
+
+        // Button listeners
         startGameButton?.onClick.AddListener(OnStartGameClicked);
         leaveButton?.onClick.AddListener(OnLeaveClicked);
+        decreaseRoundsButton?.onClick.AddListener(DecreaseRounds);
+        increaseRoundsButton?.onClick.AddListener(IncreaseRounds);
 
         // Subscribe to player events with correct signatures
         if (NetworkManager.main != null)
@@ -54,11 +90,14 @@ public class LobbySceneUI : MonoBehaviour
         }
 
         UpdatePlayerCount();
+        UpdateRoundCountUI();
 
         if (_isHost)
             SetStatus("You are the host. Start when ready!");
         else
             SetStatus("Waiting for host to start...");
+
+        Debug.Log($"[Lobby] Started. IsHost: {_isHost}, IsServer: {NetworkManager.main?.isServer}");
     }
 
     private void Update()
@@ -79,6 +118,11 @@ public class LobbySceneUI : MonoBehaviour
             NetworkManager.main.onPlayerJoined -= OnPlayerJoined;
             NetworkManager.main.onPlayerLeft -= OnPlayerLeft;
         }
+
+        startGameButton?.onClick.RemoveListener(OnStartGameClicked);
+        leaveButton?.onClick.RemoveListener(OnLeaveClicked);
+        decreaseRoundsButton?.onClick.RemoveListener(DecreaseRounds);
+        increaseRoundsButton?.onClick.RemoveListener(IncreaseRounds);
     }
 
     private void OnPlayerJoined(PlayerID player, bool isReconnect, bool asServer)
@@ -124,9 +168,49 @@ public class LobbySceneUI : MonoBehaviour
             playerCountText.text = "Players: " + count;
     }
 
+    #region Round Settings
+
+    private void IncreaseRounds()
+    {
+        _currentRounds = Mathf.Min(_currentRounds + 1, maxRounds);
+        UpdateRoundCountUI();
+    }
+
+    private void DecreaseRounds()
+    {
+        _currentRounds = Mathf.Max(_currentRounds - 1, minRounds);
+        UpdateRoundCountUI();
+    }
+
+    private void UpdateRoundCountUI()
+    {
+        if (roundCountText != null)
+            roundCountText.text = _currentRounds.ToString();
+
+        if (decreaseRoundsButton != null)
+            decreaseRoundsButton.interactable = (_currentRounds > minRounds);
+
+        if (increaseRoundsButton != null)
+            increaseRoundsButton.interactable = (_currentRounds < maxRounds);
+    }
+
+    private void SaveRoundSettings()
+    {
+        // Save to PlayerPrefs so game scene can read it
+        PlayerPrefs.SetInt("TotalRounds", _currentRounds);
+        PlayerPrefs.Save();
+
+        Debug.Log($"[Lobby] Saved round count: {_currentRounds}");
+    }
+
+    #endregion
+
     private void OnStartGameClicked()
     {
         if (!_isHost) return;
+
+        // Save round settings before loading game
+        SaveRoundSettings();
 
         SetStatus("Starting game...");
 
