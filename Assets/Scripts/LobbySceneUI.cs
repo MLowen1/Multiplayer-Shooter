@@ -23,6 +23,9 @@ public class LobbySceneUI : MonoBehaviour
     [SerializeField] private int maxRounds = 10;
     [SerializeField] private int defaultRounds = 3;
 
+    [Header("Player Limit")]
+    [SerializeField] private int maxPlayers = 10;
+
     [Header("Settings")]
     [SerializeField] private string gameSceneName = "GameScene";
     [SerializeField] private string mainMenuSceneName = "MainMenu";
@@ -97,7 +100,7 @@ public class LobbySceneUI : MonoBehaviour
         else
             SetStatus("Waiting for host to start...");
 
-        Debug.Log($"[Lobby] Started. IsHost: {_isHost}, IsServer: {NetworkManager.main?.isServer}");
+        Debug.Log($"[Lobby] Started. IsHost: {_isHost}, IsServer: {NetworkManager.main?.isServer}, MaxPlayers: {maxPlayers}");
     }
 
     private void Update()
@@ -127,8 +130,61 @@ public class LobbySceneUI : MonoBehaviour
 
     private void OnPlayerJoined(PlayerID player, bool isReconnect, bool asServer)
     {
+        Debug.Log($"[Lobby] Player joined: {player}, asServer: {asServer}");
+
         UpdatePlayerCount();
-        Debug.Log("Player joined: " + player.ToString());
+
+        // Check if we're over the player limit (only host/server should handle this)
+        if (_isHost && asServer)
+        {
+            int currentCount = GetPlayerCount();
+
+            if (currentCount > maxPlayers)
+            {
+                Debug.Log($"[Lobby] Player limit reached ({currentCount}/{maxPlayers}). Player {player} cannot join.");
+                SetStatus($"Lobby full! ({maxPlayers} max)");
+
+                // Try to disconnect the player who just joined
+                try
+                {
+                    // Try different methods PurrNet might use
+                    var nm = NetworkManager.main;
+
+                    // Method 1: Try Disconnect
+                    var disconnectMethod = nm.GetType().GetMethod("Disconnect", new[] { typeof(PlayerID) });
+                    if (disconnectMethod != null)
+                    {
+                        disconnectMethod.Invoke(nm, new object[] { player });
+                        Debug.Log($"[Lobby] Disconnected player using Disconnect method");
+                        return;
+                    }
+
+                    // Method 2: Try DisconnectPlayer
+                    var disconnectPlayerMethod = nm.GetType().GetMethod("DisconnectPlayer", new[] { typeof(PlayerID) });
+                    if (disconnectPlayerMethod != null)
+                    {
+                        disconnectPlayerMethod.Invoke(nm, new object[] { player });
+                        Debug.Log($"[Lobby] Disconnected player using DisconnectPlayer method");
+                        return;
+                    }
+
+                    // Method 3: Try RemovePlayer
+                    var removePlayerMethod = nm.GetType().GetMethod("RemovePlayer", new[] { typeof(PlayerID) });
+                    if (removePlayerMethod != null)
+                    {
+                        removePlayerMethod.Invoke(nm, new object[] { player });
+                        Debug.Log($"[Lobby] Disconnected player using RemovePlayer method");
+                        return;
+                    }
+
+                    Debug.LogWarning($"[Lobby] Could not find method to kick player. Lobby is over capacity!");
+                }
+                catch (System.Exception e)
+                {
+                    Debug.LogError($"[Lobby] Error disconnecting player: {e.Message}");
+                }
+            }
+        }
     }
 
     private void OnPlayerLeft(PlayerID player, bool asServer)
@@ -137,9 +193,9 @@ public class LobbySceneUI : MonoBehaviour
         Debug.Log("Player left: " + player.ToString());
     }
 
-    private void UpdatePlayerCount()
+    private int GetPlayerCount()
     {
-        int count = 1;
+        int count = 0;
 
         var playerModule = NetworkManager.main?.playerModule;
         if (playerModule != null)
@@ -164,8 +220,28 @@ public class LobbySceneUI : MonoBehaviour
             }
         }
 
+        // Fallback - try to get from NetworkManager.main.players
+        if (count == 0 && NetworkManager.main != null)
+        {
+            try
+            {
+                count = NetworkManager.main.players.Count;
+            }
+            catch
+            {
+                count = 1;
+            }
+        }
+
+        return count;
+    }
+
+    private void UpdatePlayerCount()
+    {
+        int count = GetPlayerCount();
+
         if (playerCountText != null)
-            playerCountText.text = "Players: " + count;
+            playerCountText.text = $"Players: {count}/{maxPlayers}";
     }
 
     #region Round Settings

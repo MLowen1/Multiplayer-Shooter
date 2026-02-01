@@ -88,6 +88,18 @@ public class PlayerHealth : NetworkBehaviour
             return;
         }
 
+        // Only Props can take damage - Seekers are immune
+        if (amount < 0) // Only check for damage, not healing
+        {
+            var playerTeam = GetComponent<PlayerTeam>();
+            if (playerTeam != null && playerTeam.CurrentTeam == Team.Seekers)
+            {
+                if (showDebug)
+                    Debug.Log($"[PlayerHealth] Ignoring damage - Seekers cannot take damage");
+                return;
+            }
+        }
+
         int previousHealth = _health.value;
         _health.value += amount;
 

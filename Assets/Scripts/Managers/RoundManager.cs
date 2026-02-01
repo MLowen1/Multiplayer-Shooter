@@ -31,6 +31,7 @@ public class RoundManager : NetworkBehaviour
     [SerializeField] private List<Transform> propSpawnPoints = new();
     [SerializeField] private List<Transform> seekerSpawnPoints = new();
     [SerializeField][Range(0.1f, 0.9f)] private float propPercentage = 0.5f;
+    [SerializeField] private float spawnDelay = 0.15f; // Delay between each player spawn
 
     [Header("Scoring")]
     [SerializeField] private int pointsForKill = 100;
@@ -82,7 +83,6 @@ public class RoundManager : NetworkBehaviour
         _phaseTimeRemaining.onChanged += OnTimerChangedCallback;
         _countdownTimer.onChanged += OnCountdownChangedCallback;
 
-        // Load round count from PlayerPrefs (set in lobby)
         if (isServer)
         {
             int savedRounds = PlayerPrefs.GetInt("TotalRounds", 3);
@@ -212,21 +212,28 @@ public class RoundManager : NetworkBehaviour
     {
         _alivePropPlayers.Clear();
 
-        var allPlayers = FindObjectsByType<PlayerTeam>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
-        foreach (var player in allPlayers)
+        try
         {
-            if (player.CurrentTeam == Team.Props)
+            var allPlayers = FindObjectsByType<PlayerTeam>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+            foreach (var player in allPlayers)
             {
-                var identity = player.GetComponent<NetworkIdentity>();
-                if (identity != null && identity.owner.HasValue)
+                if (player != null && player.CurrentTeam == Team.Props)
                 {
-                    _alivePropPlayers.Add(identity.owner.Value);
+                    var identity = player.GetComponent<NetworkIdentity>();
+                    if (identity != null && identity.owner.HasValue)
+                    {
+                        _alivePropPlayers.Add(identity.owner.Value);
+                    }
                 }
             }
-        }
 
-        if (showDebug)
-            Debug.Log($"[RoundManager] Tracking {_alivePropPlayers.Count} prop players");
+            if (showDebug)
+                Debug.Log($"[RoundManager] Tracking {_alivePropPlayers.Count} prop players");
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"[RoundManager] Error tracking alive players: {e.Message}");
+        }
     }
 
     public void OnPropKilled(PlayerID killerID, PlayerID victimID)
@@ -302,21 +309,28 @@ public class RoundManager : NetworkBehaviour
     {
         _previousSeekers.Clear();
 
-        var allPlayers = FindObjectsByType<PlayerTeam>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
-        foreach (var player in allPlayers)
+        try
         {
-            if (player.CurrentTeam == Team.Seekers)
+            var allPlayers = FindObjectsByType<PlayerTeam>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+            foreach (var player in allPlayers)
             {
-                var identity = player.GetComponent<NetworkIdentity>();
-                if (identity != null && identity.owner.HasValue)
+                if (player != null && player.CurrentTeam == Team.Seekers)
                 {
-                    _previousSeekers.Add(identity.owner.Value);
+                    var identity = player.GetComponent<NetworkIdentity>();
+                    if (identity != null && identity.owner.HasValue)
+                    {
+                        _previousSeekers.Add(identity.owner.Value);
+                    }
                 }
             }
-        }
 
-        if (showDebug)
-            Debug.Log($"[RoundManager] Stored {_previousSeekers.Count} previous seekers");
+            if (showDebug)
+                Debug.Log($"[RoundManager] Stored {_previousSeekers.Count} previous seekers");
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"[RoundManager] Error storing previous seekers: {e.Message}");
+        }
     }
 
     private IEnumerator HandleRoundEndCountdown()
@@ -351,12 +365,119 @@ public class RoundManager : NetworkBehaviour
         if (showDebug)
             Debug.Log($"[RoundManager] Starting round {_currentRound.value}");
 
-        // Despawn all existing players and decoys
-        DespawnAllPlayers();
-        DespawnAllDecoys();
+        // Use coroutine for staggered respawning to prevent network overload
+        StartCoroutine(RespawnPlayersStaggered());
+    }
 
-        // Respawn players with new teams
-        RespawnPlayers();
+    private IEnumerator RespawnPlayersStaggered()
+    {
+        if (showDebug)
+            Debug.Log("[RoundManager] Starting staggered respawn...");
+
+        // First, despawn all existing players and decoys
+        DespawnAllPlayers();
+        yield return null; // Wait a frame
+
+        DespawnAllDecoys();
+        yield return null; // Wait a frame
+
+        // Wait for destruction to complete on all clients
+        yield return new WaitForSeconds(0.5f);
+
+        if (playerPrefab == null)
+        {
+            Debug.LogError("[RoundManager] Player prefab not assigned!");
+            StartHidingPhase(); // Try to continue anyway
+            yield break;
+        }
+
+        // Get all connected players
+        List<PlayerID> players;
+        try
+        {
+            players = new List<PlayerID>(NetworkManager.main.players);
+            if (showDebug)
+                Debug.Log($"[RoundManager] Found {players.Count} players to respawn");
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"[RoundManager] Error getting players: {e.Message}");
+            StartHidingPhase();
+            yield break;
+        }
+
+        if (players.Count == 0)
+        {
+            Debug.LogWarning("[RoundManager] No players to respawn!");
+            StartHidingPhase();
+            yield break;
+        }
+
+        // Assign teams
+        Dictionary<PlayerID, Team> teamAssignments;
+        try
+        {
+            teamAssignments = AssignTeams(players);
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"[RoundManager] Error assigning teams: {e.Message}");
+            StartHidingPhase();
+            yield break;
+        }
+
+        int propSpawnIndex = 0;
+        int seekerSpawnIndex = 0;
+        int spawnedCount = 0;
+
+        // Spawn players with delay between each
+        foreach (var kvp in teamAssignments)
+        {
+            PlayerID playerID = kvp.Key;
+            Team team = kvp.Value;
+
+            try
+            {
+                Transform spawnPoint = GetSpawnPoint(team, ref propSpawnIndex, ref seekerSpawnIndex);
+
+                if (spawnPoint == null)
+                {
+                    Debug.LogError($"[RoundManager] No spawn point for {playerID}!");
+                    continue;
+                }
+
+                var newPlayer = Instantiate(playerPrefab, spawnPoint.position, spawnPoint.rotation);
+
+                if (newPlayer != null)
+                {
+                    newPlayer.GiveOwnership(playerID);
+
+                    var playerTeam = newPlayer.GetComponent<PlayerTeam>();
+                    if (playerTeam != null)
+                    {
+                        playerTeam.SetTeam(team);
+                    }
+
+                    spawnedCount++;
+
+                    if (showDebug)
+                        Debug.Log($"[RoundManager] Respawned {playerID} as {team} ({spawnedCount}/{players.Count})");
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[RoundManager] Error spawning player {playerID}: {e.Message}\n{e.StackTrace}");
+            }
+
+            // Small delay between spawns to prevent network overload
+            yield return new WaitForSeconds(spawnDelay);
+        }
+
+        if (showDebug)
+            Debug.Log($"[RoundManager] Finished spawning {spawnedCount} players");
+
+        // Wait a moment for all spawns to sync
+        yield return new WaitForSeconds(0.5f);
 
         // Start hiding phase
         StartHidingPhase();
@@ -364,66 +485,49 @@ public class RoundManager : NetworkBehaviour
 
     private void DespawnAllPlayers()
     {
-        var allPlayers = FindObjectsByType<PlayerHealth>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
-        foreach (var player in allPlayers)
+        try
         {
-            Destroy(player.gameObject);
-        }
+            var allPlayers = FindObjectsByType<PlayerHealth>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+            int count = allPlayers.Length;
 
-        if (showDebug)
-            Debug.Log($"[RoundManager] Despawned {allPlayers.Length} players");
+            foreach (var player in allPlayers)
+            {
+                if (player != null && player.gameObject != null)
+                {
+                    Destroy(player.gameObject);
+                }
+            }
+
+            if (showDebug)
+                Debug.Log($"[RoundManager] Despawned {count} players");
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"[RoundManager] Error despawning players: {e.Message}");
+        }
     }
 
     private void DespawnAllDecoys()
     {
-        var allDecoys = FindObjectsByType<PropDecoy>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
-        foreach (var decoy in allDecoys)
+        try
         {
-            Destroy(decoy.gameObject);
-        }
+            var allDecoys = FindObjectsByType<PropDecoy>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+            int count = allDecoys.Length;
 
-        if (showDebug)
-            Debug.Log($"[RoundManager] Despawned {allDecoys.Length} decoys");
-    }
-
-    private void RespawnPlayers()
-    {
-        if (playerPrefab == null)
-        {
-            Debug.LogError("[RoundManager] Player prefab not assigned!");
-            return;
-        }
-
-        var players = new List<PlayerID>(NetworkManager.main.players);
-        var teamAssignments = AssignTeams(players);
-
-        int propSpawnIndex = 0;
-        int seekerSpawnIndex = 0;
-
-        foreach (var kvp in teamAssignments)
-        {
-            PlayerID playerID = kvp.Key;
-            Team team = kvp.Value;
-
-            Transform spawnPoint = GetSpawnPoint(team, ref propSpawnIndex, ref seekerSpawnIndex);
-
-            if (spawnPoint == null)
+            foreach (var decoy in allDecoys)
             {
-                Debug.LogError($"[RoundManager] No spawn point for {playerID}!");
-                continue;
-            }
-
-            var newPlayer = Instantiate(playerPrefab, spawnPoint.position, spawnPoint.rotation);
-            newPlayer.GiveOwnership(playerID);
-
-            var playerTeam = newPlayer.GetComponent<PlayerTeam>();
-            if (playerTeam != null)
-            {
-                playerTeam.SetTeam(team);
+                if (decoy != null && decoy.gameObject != null)
+                {
+                    Destroy(decoy.gameObject);
+                }
             }
 
             if (showDebug)
-                Debug.Log($"[RoundManager] Respawned {playerID} as {team}");
+                Debug.Log($"[RoundManager] Despawned {count} decoys");
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"[RoundManager] Error despawning decoys: {e.Message}");
         }
     }
 
@@ -484,6 +588,9 @@ public class RoundManager : NetworkBehaviour
             assignments[player] = team;
         }
 
+        if (showDebug)
+            Debug.Log($"[RoundManager] Team assignments: {propsAssigned} props, {seekersAssigned} seekers");
+
         return assignments;
     }
 
@@ -502,6 +609,7 @@ public class RoundManager : NetworkBehaviour
             return point;
         }
 
+        // Fallback to prop spawn points
         if (propSpawnPoints.Count > 0)
         {
             var point = propSpawnPoints[propIndex % propSpawnPoints.Count];
@@ -555,6 +663,8 @@ public class RoundManager : NetworkBehaviour
     [ObserversRpc]
     private void RpcReturnToLobby()
     {
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
         SceneManager.LoadScene(returnToSceneName);
     }
 
@@ -571,22 +681,31 @@ public class RoundManager : NetworkBehaviour
     [ObserversRpc]
     private void RpcSetSeekersFrozen(bool frozen)
     {
-        var allPlayers = FindObjectsByType<PlayerTeam>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
-        foreach (var player in allPlayers)
+        try
         {
-            var identity = player.GetComponent<NetworkIdentity>();
-            if (identity != null && identity.isOwner && player.CurrentTeam == Team.Seekers)
+            var allPlayers = FindObjectsByType<PlayerTeam>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+            foreach (var player in allPlayers)
             {
-                var controller = player.GetComponent<PlayerController>();
-                if (controller != null)
+                if (player == null) continue;
+
+                var identity = player.GetComponent<NetworkIdentity>();
+                if (identity != null && identity.isOwner && player.CurrentTeam == Team.Seekers)
                 {
-                    controller.SetFrozen(frozen);
+                    var controller = player.GetComponent<PlayerController>();
+                    if (controller != null)
+                    {
+                        controller.SetFrozen(frozen);
+                    }
                 }
             }
-        }
 
-        if (showDebug)
-            Debug.Log($"[RoundManager] Seekers frozen: {frozen}");
+            if (showDebug)
+                Debug.Log($"[RoundManager] Seekers frozen: {frozen}");
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"[RoundManager] Error setting seekers frozen: {e.Message}");
+        }
     }
 
     [ObserversRpc]
